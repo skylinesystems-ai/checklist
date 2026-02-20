@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetCheck Pro - Checklist Completo</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    background:#f2f4f8;
+    margin:0;
+    padding:15px;
+}
+
+.container{
+    max-width:1100px;
+    margin:auto;
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0 5px 20px rgba(0,0,0,0.1);
+}
+
+h1{
+    text-align:center;
+}
+
+h2{
+    background:#1e3c72;
+    color:white;
+    padding:8px;
+    border-radius:5px;
+    font-size:16px;
+}
+
+.section{
+    margin-bottom:25px;
+}
+
+.item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:8px 5px;
+    border-bottom:1px solid #ddd;
+    font-size:14px;
+}
+
+.status{
+    display:flex;
+    gap:8px;
+}
+
+textarea{
+    width:100%;
+    height:120px;
+    padding:10px;
+    border-radius:6px;
+    border:1px solid #ccc;
+}
+
+input{
+    width:100%;
+    padding:8px;
+    margin-bottom:10px;
+    border-radius:6px;
+    border:1px solid #ccc;
+}
+
+button{
+    background:#1e3c72;
+    color:white;
+    padding:14px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    width:100%;
+    font-size:16px;
+}
+
+.dashboard{
+    background:#f8f9fc;
+    padding:10px;
+    border-radius:6px;
+    margin-top:15px;
+}
+
+.preview{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:10px;
+}
+
+.preview img{
+    width:90px;
+    height:90px;
+    object-fit:cover;
+    border-radius:8px;
+}
+
+@media(max-width:600px){
+    .item{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Checklist Diário de Caminhão</h1>
+
+<label>Nome</label>
+<input type="text" id="nome">
+
+<label>Veículo</label>
+<input type="text" id="veiculo">
+
+<label>Empresa</label>
+<input type="text" id="empresa">
+
+<label>Data</label>
+<input type="date" id="data">
+
+<div id="conteudo"></div>
+
+<div class="section">
+    <h2>Fotos dos Problemas</h2>
+    <input type="file" accept="image/*" capture="environment" multiple id="fotos">
+    <div class="preview" id="preview"></div>
+</div>
+
+<div class="section">
+    <h2>Observações</h2>
+    <textarea id="observacoes" placeholder="Descreva aqui problemas encontrados..."></textarea>
+</div>
+
+<div class="dashboard">
+    <h3>Problemas Detectados</h3>
+    <ul id="problemas"></ul>
+</div>
+
+<button onclick="gerarPDF()">Gerar PDF Profissional</button>
+
+</div>
+
+<script>
+
+const estrutura = {
+"Estado Geral (Bom / Médio / Ruim)":
+["Pintura Externa","Limpeza Interna","Pneus","Estepe","Caçamba"],
+
+"Iluminação - Direita":
+["Luz","Luz de ré","Luz de freio","Seta"],
+
+"Iluminação - Esquerda":
+["Luz","Luz de ré","Luz de freio","Seta"],
+
+"Segurança e Itens Obrigatórios":
+["Alarme","Buzina","Chave de roda","Cintos","Documentos","Extintor",
+"Limpadores","Macaco","Painel","Retrovisor Interno",
+"Retrovisor Direito","Retrovisor Esquerdo","Travas","Triângulo"],
+
+"Sistema Mecânico":
+["Acelerador","Água do radiador","Embreagem","Freio",
+"Freio de mão","Óleo de freio","Óleo de motor","Tanque de partida"]
+};
+
+const classificacao = {
+"Freio":"Corretiva - CRÍTICA",
+"Óleo de motor":"Preditiva - CRÍTICA",
+"Documentos":"Corretiva - CRÍTICA",
+"Pneus":"Preventiva - MÉDIA",
+"Luz":"Corretiva - MÉDIA",
+"Luz de freio":"Corretiva - CRÍTICA"
+};
+
+const conteudo = document.getElementById("conteudo");
+const listaProblemas = document.getElementById("problemas");
+
+let contador = 0;
+let imagens = [];
+
+/* =========================
+   GERAR CHECKLIST
+========================= */
+
+for(let secao in estrutura){
+
+    conteudo.innerHTML += `<div class="section"><h2>${secao}</h2>`;
+
+    estrutura[secao].forEach(item=>{
+        conteudo.innerHTML += `
+        <div class="item">
+            <span>${item}</span>
+            <div class="status">
+                <label>OK <input type="radio" name="item${contador}" value="ok"></label>
+                <label>Problema <input type="radio" name="item${contador}" value="problema" onchange="registrarProblema('${item}')"></label>
+            </div>
+        </div>
+        `;
+        contador++;
+    });
+
+    conteudo.innerHTML += `</div>`;
+}
+
+/* =========================
+   REGISTRAR PROBLEMAS
+========================= */
+
+function registrarProblema(item){
+
+    const existente = Array.from(listaProblemas.children)
+        .some(li => li.dataset.item === item);
+
+    if(existente) return;
+
+    const li = document.createElement("li");
+    li.dataset.item = item;
+
+    let tipo = classificacao[item] || "Preventiva - BAIXA";
+    li.textContent = `${item} → ${tipo}`;
+
+    listaProblemas.appendChild(li);
+}
+
+/* =========================
+   PREVIEW DE IMAGENS
+========================= */
+
+document.getElementById("fotos").addEventListener("change", function(){
+
+    imagens = [];
+    document.getElementById("preview").innerHTML = "";
+
+    Array.from(this.files).forEach(file=>{
+        const reader = new FileReader();
+        reader.onload = e=>{
+            imagens.push(e.target.result);
+
+            const img = document.createElement("img");
+            img.src = e.target.result;
+            document.getElementById("preview").appendChild(img);
+        };
+        reader.readAsDataURL(file);
+    });
+});
+
+/* =========================
+   GERAR PDF PROFISSIONAL
+========================= */
+
+function gerarPDF(){
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF("p","mm","a4");
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const primary = [30,60,114];
+    const dark = [33,33,33];
+    const danger = [180,0,0];
+
+    let y = 20;
+
+    function header(){
+        doc.setFillColor(...primary);
+        doc.rect(0,0,pageWidth,25,"F");
+
+        doc.setFont("helvetica","bold");
+        doc.setFontSize(16);
+        doc.setTextColor(255,255,255);
+        doc.text("RELATÓRIO CHECKLIST DE FROTA", pageWidth/2,15,{align:"center"});
+
+        y = 35;
+    }
+
+    function footer(){
+        doc.setFontSize(8);
+        doc.setTextColor(120);
+        doc.text("Gerado por FleetCheck Pro",10,pageHeight-10);
+        doc.text("Página "+doc.internal.getNumberOfPages(),pageWidth-25,pageHeight-10);
+    }
+
+    header();
+
+    /* INFORMAÇÕES */
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...primary);
+    doc.text("INFORMAÇÕES GERAIS",10,y);
+    y+=10;
+
+    doc.rect(10,y,pageWidth-20,25);
+
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(11);
+    doc.setTextColor(...dark);
+
+    doc.text("Motorista: "+nome.value,15,y+7);
+    doc.text("Veículo: "+veiculo.value,15,y+14);
+    doc.text("Empresa: "+empresa.value,15,y+21);
+    doc.text("Data: "+data.value,110,y+21);
+
+    y+=40;
+
+    /* PROBLEMAS */
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(14);
+    doc.setTextColor(...primary);
+    doc.text("PROBLEMAS IDENTIFICADOS",10,y);
+    y+=10;
+
+    doc.setFontSize(11);
+
+    const problemas = document.querySelectorAll("#problemas li");
+
+    if(problemas.length === 0){
+        doc.setFont("helvetica","normal");
+        doc.setTextColor(...dark);
+        doc.text("Nenhum problema identificado.",10,y);
+        y+=8;
+    } else {
+
+        problemas.forEach(li=>{
+
+            if(y > pageHeight-25){
+                footer();
+                doc.addPage();
+                header();
+            }
+
+            let texto = li.textContent.replace(/\s+/g," ").trim();
+            let linhas = doc.splitTextToSize(texto,pageWidth-30);
+
+            if(texto.includes("CRÍTICA")){
+                doc.setFont("helvetica","bold");
+                doc.setTextColor(...danger);
+            }else{
+                doc.setFont("helvetica","normal");
+                doc.setTextColor(...dark);
+            }
+
+            doc.text("• "+linhas,12,y);
+            y+=linhas.length*6+2;
+        });
+    }
+
+    /* OBSERVAÇÕES */
+    y+=5;
+
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...primary);
+    doc.text("OBSERVAÇÕES DO MOTORISTA",10,y);
+    y+=10;
+
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(11);
+    doc.setTextColor(...dark);
+
+    const obs = observacoes.value || "";
+    const obsLinhas = doc.splitTextToSize(obs,pageWidth-30);
+
+    doc.rect(10,y-5,pageWidth-20,obsLinhas.length*6+10);
+    doc.text(obsLinhas,15,y+5);
+
+    y+=obsLinhas.length*6+15;
+
+    /* FOTOS */
+    if(imagens.length > 0){
+
+        footer();
+        doc.addPage();
+        header();
+
+        doc.setFont("helvetica","bold");
+        doc.setFontSize(14);
+        doc.setTextColor(...primary);
+        doc.text("REGISTRO FOTOGRÁFICO",10,y);
+        y+=15;
+
+        imagens.forEach(img=>{
+            if(y > pageHeight-80){
+                footer();
+                doc.addPage();
+                header();
+            }
+            doc.addImage(img,"JPEG",15,y,180,60);
+            y+=70;
+        });
+    }
+
+    footer();
+    doc.save("Checklist_Frota_Profissional.pdf");
+}
+
+</script>
+</body>
+</html>
