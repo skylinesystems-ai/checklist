@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>FleetCheck Pro V2</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12,7 +11,7 @@
 <style>
 
 body{
-font-family:Arial;
+font-family:Arial, Helvetica, sans-serif;
 background:#f3f5f9;
 margin:0;
 padding:20px;
@@ -29,7 +28,7 @@ box-shadow:0 5px 20px rgba(0,0,0,0.1);
 
 h1{
 text-align:center;
-margin-bottom:30px;
+margin-bottom:20px;
 }
 
 input,textarea{
@@ -57,6 +56,7 @@ margin-top:20px;
 .item{
 display:flex;
 justify-content:space-between;
+align-items:center;
 padding:6px;
 border-bottom:1px solid #eee;
 }
@@ -79,13 +79,20 @@ margin:5px;
 border-radius:6px;
 }
 
-.prioridadeCritica{color:red;font-weight:bold}
-.prioridadeAlta{color:#ff6600}
-.prioridadeMedia{color:#caa500}
-.prioridadeBaixa{color:#666}
+.prioridadeCRITICA{color:red;font-weight:bold}
+.prioridadeALTA{color:#ff6600}
+.prioridadeMEDIA{color:#caa500}
+.prioridadeBAIXA{color:#666}
+
+.alert{
+padding:10px;
+margin:10px 0;
+border-radius:5px;
+background:#ffe1e1;
+color:#800;
+}
 
 </style>
-
 </head>
 
 <body>
@@ -110,15 +117,15 @@ border-radius:6px;
 <h3>Observações</h3>
 <textarea id="observacoes"></textarea>
 
-<button onclick="salvarChecklist()">Salvar Checklist</button>
-<button onclick="gerarPDF()">Gerar PDF</button>
+<button id="btnSalvar">Salvar Checklist</button>
+<button id="btnPDF">Gerar PDF</button>
 
 <div class="section">
-
 <h3>Problemas Detectados</h3>
 <ul id="listaProblemas"></ul>
-
 </div>
+
+<div id="alertas"></div>
 
 <div class="dashboard">
 
@@ -130,6 +137,9 @@ border-radius:6px;
 <h3>Problemas mais recorrentes</h3>
 <canvas id="graficoProblemas"></canvas>
 
+<h3>Custo estimado de manutenção</h3>
+<p id="custoTotal">Calculando...</p>
+
 </div>
 
 </div>
@@ -139,6 +149,8 @@ border-radius:6px;
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import { getFirestore,collection,addDoc,getDocs } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 import { getStorage,ref,uploadBytes,getDownloadURL } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js";
+
+/* FIREBASE */
 
 const firebaseConfig = {
 apiKey: "AIzaSyBKhszhnGLcwJut7r-yM-n1C_r7Z2BlXwY",
@@ -166,19 +178,34 @@ const estrutura = {
 
 };
 
+/* CLASSIFICAÇÃO */
+
 const classificacao = {
 
 "Freio":{tipo:"Corretiva",prioridade:"CRITICA"},
 "Óleo de motor":{tipo:"Preditiva",prioridade:"ALTA"},
 "Pneus":{tipo:"Preventiva",prioridade:"MEDIA"},
-"Luz freio":{tipo:"Corretiva",prioridade:"CRITICA"}
+"Luz freio":{tipo:"Corretiva",prioridade:"CRITICA"},
+"Bateria":{tipo:"Preventiva",prioridade:"MEDIA"}
 
 };
 
-const checklistDiv = document.getElementById("checklist");
-const listaProblemas = document.getElementById("listaProblemas");
+/* CUSTOS */
 
-let problemas = [];
+const custoProblemas = {
+
+"Freio":800,
+"Pneus":1200,
+"Óleo de motor":350,
+"Bateria":450,
+"Luz freio":50
+
+};
+
+const checklistDiv=document.getElementById("checklist");
+const listaProblemas=document.getElementById("listaProblemas");
+
+let problemas=[];
 let imagens=[];
 
 /* GERAR CHECKLIST */
@@ -195,20 +222,16 @@ const div=document.createElement("div");
 div.className="item";
 
 div.innerHTML=`
-
 <span>${item}</span>
-
 <label>OK <input type="radio" name="${item}" value="ok"></label>
-
 <label>Problema <input type="radio" name="${item}" value="problema"></label>
-
 `;
 
 div.querySelectorAll("input")[1].addEventListener("change",()=>registrarProblema(item));
 
 checklistDiv.appendChild(div);
 
-})
+});
 
 }
 
@@ -216,22 +239,36 @@ checklistDiv.appendChild(div);
 
 function registrarProblema(item){
 
-if(problemas.includes(item))return;
+if(problemas.includes(item)) return;
 
 problemas.push(item);
 
-let dados = classificacao[item] || {tipo:"Preventiva",prioridade:"BAIXA"};
+let dados=classificacao[item] || {tipo:"Preventiva",prioridade:"BAIXA"};
 
 const li=document.createElement("li");
 
 li.innerHTML=`
-${item} → ${dados.tipo} - 
+${item} → ${dados.tipo}
 <span class="prioridade${dados.prioridade}">
 ${dados.prioridade}
 </span>
 `;
 
 listaProblemas.appendChild(li);
+
+if(dados.prioridade==="CRITICA") gerarAlerta(`Problema crítico detectado: ${item}`);
+
+}
+
+/* ALERTAS */
+
+function gerarAlerta(msg){
+
+const div=document.createElement("div");
+div.className="alert";
+div.innerText=msg;
+
+document.getElementById("alertas").appendChild(div);
 
 }
 
@@ -248,27 +285,26 @@ imagens.forEach(file=>{
 
 const img=document.createElement("img");
 img.src=URL.createObjectURL(file);
-
 preview.appendChild(img);
 
-})
+});
 
 });
 
 /* SALVAR CHECKLIST */
 
-window.salvarChecklist = async function(){
+document.getElementById("btnSalvar").onclick=async function(){
 
-const motorista=nome.value;
-const veiculo=veiculoInput.value;
-const empresa=empresa.value;
-const data=dataInput.value;
+const motorista=document.getElementById("nome").value;
+const veiculo=document.getElementById("veiculo").value;
+const empresa=document.getElementById("empresa").value;
+const data=document.getElementById("data").value;
 
 let fotosUrls=[];
 
 for(const file of imagens){
 
-const storageRef=ref(storage,"fotos/"+file.name);
+const storageRef=ref(storage,"fotos/"+Date.now()+"_"+file.name);
 
 await uploadBytes(storageRef,file);
 
@@ -285,17 +321,17 @@ veiculo,
 empresa,
 data,
 problemas,
-observacoes:observacoes.value,
+observacoes:document.getElementById("observacoes").value,
 fotos:fotosUrls,
 timestamp:Date.now()
 
 });
 
-alert("Checklist salvo!");
+alert("Checklist salvo com sucesso");
 
 carregarDashboard();
 
-}
+};
 
 /* DASHBOARD */
 
@@ -305,6 +341,7 @@ const querySnapshot = await getDocs(collection(db,"checklists"));
 
 let veiculos={};
 let problemasStats={};
+let custoTotal=0;
 
 querySnapshot.forEach(doc=>{
 
@@ -313,17 +350,27 @@ const data=doc.data();
 veiculos[data.veiculo]=(veiculos[data.veiculo]||0)+data.problemas.length;
 
 data.problemas.forEach(p=>{
+
 problemasStats[p]=(problemasStats[p]||0)+1;
-});
+
+if(custoProblemas[p]) custoTotal+=custoProblemas[p];
 
 });
 
-criarGrafico("graficoVeiculos",veiculos);
-criarGrafico("graficoProblemas",problemasStats);
+});
+
+/* GRÁFICOS */
+
+criarGrafico("graficoVeiculos",veiculos,"Veículos");
+criarGrafico("graficoProblemas",problemasStats,"Problemas");
+
+document.getElementById("custoTotal").innerText="R$ "+custoTotal;
 
 }
 
-function criarGrafico(id,data){
+/* CRIAR GRÁFICO */
+
+function criarGrafico(id,data,label){
 
 const ctx=document.getElementById(id);
 
@@ -332,7 +379,7 @@ type:"bar",
 data:{
 labels:Object.keys(data),
 datasets:[{
-label:"Ocorrências",
+label:label,
 data:Object.values(data)
 }]
 }
@@ -340,20 +387,17 @@ data:Object.values(data)
 
 }
 
-carregarDashboard();
-
 /* PDF */
 
-window.gerarPDF=function(){
+document.getElementById("btnPDF").onclick=function(){
 
 const { jsPDF } = window.jspdf;
 
 const doc=new jsPDF();
 
 doc.text("Checklist Frota",20,20);
-
-doc.text("Motorista: "+nome.value,20,40);
-doc.text("Veículo: "+veiculo.value,20,50);
+doc.text("Motorista: "+document.getElementById("nome").value,20,40);
+doc.text("Veículo: "+document.getElementById("veiculo").value,20,50);
 
 let y=70;
 
@@ -364,7 +408,11 @@ y+=10;
 
 doc.save("checklist.pdf");
 
-}
+};
+
+/* INICIALIZA DASHBOARD */
+
+carregarDashboard();
 
 </script>
 
