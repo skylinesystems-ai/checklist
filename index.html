@@ -3,407 +3,370 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FleetCheck Pro - Checklist Completo</title>
+
+<title>FleetCheck Pro V2</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
+
 body{
-    font-family: Arial, sans-serif;
-    background:#f2f4f8;
-    margin:0;
-    padding:15px;
+font-family:Arial;
+background:#f3f5f9;
+margin:0;
+padding:20px;
 }
 
 .container{
-    max-width:1100px;
-    margin:auto;
-    background:white;
-    padding:20px;
-    border-radius:10px;
-    box-shadow:0 5px 20px rgba(0,0,0,0.1);
+max-width:1200px;
+margin:auto;
+background:white;
+padding:25px;
+border-radius:10px;
+box-shadow:0 5px 20px rgba(0,0,0,0.1);
 }
 
 h1{
-    text-align:center;
+text-align:center;
+margin-bottom:30px;
 }
 
-h2{
-    background:#1e3c72;
-    color:white;
-    padding:8px;
-    border-radius:5px;
-    font-size:16px;
-}
-
-.section{
-    margin-bottom:25px;
-}
-
-.item{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:8px 5px;
-    border-bottom:1px solid #ddd;
-    font-size:14px;
-}
-
-.status{
-    display:flex;
-    gap:8px;
-}
-
-textarea{
-    width:100%;
-    height:120px;
-    padding:10px;
-    border-radius:6px;
-    border:1px solid #ccc;
-}
-
-input{
-    width:100%;
-    padding:8px;
-    margin-bottom:10px;
-    border-radius:6px;
-    border:1px solid #ccc;
+input,textarea{
+width:100%;
+padding:10px;
+margin-bottom:10px;
+border-radius:6px;
+border:1px solid #ccc;
 }
 
 button{
-    background:#1e3c72;
-    color:white;
-    padding:14px;
-    border:none;
-    border-radius:8px;
-    cursor:pointer;
-    width:100%;
-    font-size:16px;
+background:#1e3c72;
+color:white;
+padding:12px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+margin-top:10px;
+}
+
+.section{
+margin-top:20px;
+}
+
+.item{
+display:flex;
+justify-content:space-between;
+padding:6px;
+border-bottom:1px solid #eee;
 }
 
 .dashboard{
-    background:#f8f9fc;
-    padding:10px;
-    border-radius:6px;
-    margin-top:15px;
+margin-top:40px;
+padding:20px;
+background:#f7f8fb;
+border-radius:10px;
 }
 
-.preview{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    margin-top:10px;
+canvas{
+max-width:500px;
+margin-top:20px;
 }
 
 .preview img{
-    width:90px;
-    height:90px;
-    object-fit:cover;
-    border-radius:8px;
+width:80px;
+margin:5px;
+border-radius:6px;
 }
 
-@media(max-width:600px){
-    .item{
-        flex-direction:column;
-        align-items:flex-start;
-    }
-}
+.prioridadeCritica{color:red;font-weight:bold}
+.prioridadeAlta{color:#ff6600}
+.prioridadeMedia{color:#caa500}
+.prioridadeBaixa{color:#666}
+
 </style>
+
 </head>
 
 <body>
 
 <div class="container">
 
-<h1>Checklist Diário de Caminhão</h1>
+<h1>FleetCheck Pro V2</h1>
 
-<label>Nome</label>
-<input type="text" id="nome">
+<h2>Checklist</h2>
 
-<label>Veículo</label>
-<input type="text" id="veiculo">
-
-<label>Empresa</label>
-<input type="text" id="empresa">
-
-<label>Data</label>
+<input id="nome" placeholder="Motorista">
+<input id="veiculo" placeholder="Veículo">
+<input id="empresa" placeholder="Empresa">
 <input type="date" id="data">
 
-<div id="conteudo"></div>
+<div id="checklist"></div>
+
+<h3>Fotos</h3>
+<input type="file" id="fotos" multiple>
+<div class="preview" id="preview"></div>
+
+<h3>Observações</h3>
+<textarea id="observacoes"></textarea>
+
+<button onclick="salvarChecklist()">Salvar Checklist</button>
+<button onclick="gerarPDF()">Gerar PDF</button>
 
 <div class="section">
-    <h2>Fotos dos Problemas</h2>
-    <input type="file" accept="image/*" capture="environment" multiple id="fotos">
-    <div class="preview" id="preview"></div>
-</div>
 
-<div class="section">
-    <h2>Observações</h2>
-    <textarea id="observacoes" placeholder="Descreva aqui problemas encontrados..."></textarea>
+<h3>Problemas Detectados</h3>
+<ul id="listaProblemas"></ul>
+
 </div>
 
 <div class="dashboard">
-    <h3>Problemas Detectados</h3>
-    <ul id="problemas"></ul>
+
+<h2>Dashboard da Frota</h2>
+
+<h3>Veículos com mais problemas</h3>
+<canvas id="graficoVeiculos"></canvas>
+
+<h3>Problemas mais recorrentes</h3>
+<canvas id="graficoProblemas"></canvas>
+
 </div>
 
-<button onclick="gerarPDF()">Gerar PDF Profissional</button>
-
 </div>
 
-<script>
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getFirestore,collection,addDoc,getDocs } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { getStorage,ref,uploadBytes,getDownloadURL } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js";
+
+const firebaseConfig = {
+apiKey: "AIzaSyBKhszhnGLcwJut7r-yM-n1C_r7Z2BlXwY",
+authDomain: "checklist-8d4f8.firebaseapp.com",
+databaseURL: "https://checklist-8d4f8-default-rtdb.firebaseio.com",
+projectId: "checklist-8d4f8",
+storageBucket: "checklist-8d4f8.firebasestorage.app",
+messagingSenderId: "380884911116",
+appId: "1:380884911116:web:c35b17aafe23ff515b1a29"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+/* ESTRUTURA CHECKLIST */
 
 const estrutura = {
-"Estado Geral (Bom / Médio / Ruim)":
-["Pintura Externa","Limpeza Interna","Pneus","Estepe","Caçamba"],
 
-"Iluminação - Direita":
-["Luz","Luz de ré","Luz de freio","Seta"],
+"Geral":["Pneus","Freio","Óleo de motor","Buzina","Painel","Retrovisores"],
 
-"Iluminação - Esquerda":
-["Luz","Luz de ré","Luz de freio","Seta"],
+"Iluminação":["Farol","Luz freio","Seta","Luz ré"],
 
-"Segurança e Itens Obrigatórios":
-["Alarme","Buzina","Chave de roda","Cintos","Documentos","Extintor",
-"Limpadores","Macaco","Painel","Retrovisor Interno",
-"Retrovisor Direito","Retrovisor Esquerdo","Travas","Triângulo"],
+"Mecânica":["Embreagem","Radiador","Bateria"]
 
-"Sistema Mecânico":
-["Acelerador","Água do radiador","Embreagem","Freio",
-"Freio de mão","Óleo de freio","Óleo de motor","Tanque de partida"]
 };
 
 const classificacao = {
-"Freio":"Corretiva - CRÍTICA",
-"Óleo de motor":"Preditiva - CRÍTICA",
-"Documentos":"Corretiva - CRÍTICA",
-"Pneus":"Preventiva - MÉDIA",
-"Luz":"Corretiva - MÉDIA",
-"Luz de freio":"Corretiva - CRÍTICA"
+
+"Freio":{tipo:"Corretiva",prioridade:"CRITICA"},
+"Óleo de motor":{tipo:"Preditiva",prioridade:"ALTA"},
+"Pneus":{tipo:"Preventiva",prioridade:"MEDIA"},
+"Luz freio":{tipo:"Corretiva",prioridade:"CRITICA"}
+
 };
 
-const conteudo = document.getElementById("conteudo");
-const listaProblemas = document.getElementById("problemas");
+const checklistDiv = document.getElementById("checklist");
+const listaProblemas = document.getElementById("listaProblemas");
 
-let contador = 0;
-let imagens = [];
+let problemas = [];
+let imagens=[];
 
-/* =========================
-   GERAR CHECKLIST
-========================= */
+/* GERAR CHECKLIST */
 
 for(let secao in estrutura){
 
-    conteudo.innerHTML += `<div class="section"><h2>${secao}</h2>`;
+const h=document.createElement("h3");
+h.innerText=secao;
+checklistDiv.appendChild(h);
 
-    estrutura[secao].forEach(item=>{
-        conteudo.innerHTML += `
-        <div class="item">
-            <span>${item}</span>
-            <div class="status">
-                <label>OK <input type="radio" name="item${contador}" value="ok"></label>
-                <label>Problema <input type="radio" name="item${contador}" value="problema" onchange="registrarProblema('${item}')"></label>
-            </div>
-        </div>
-        `;
-        contador++;
-    });
+estrutura[secao].forEach(item=>{
 
-    conteudo.innerHTML += `</div>`;
+const div=document.createElement("div");
+div.className="item";
+
+div.innerHTML=`
+
+<span>${item}</span>
+
+<label>OK <input type="radio" name="${item}" value="ok"></label>
+
+<label>Problema <input type="radio" name="${item}" value="problema"></label>
+
+`;
+
+div.querySelectorAll("input")[1].addEventListener("change",()=>registrarProblema(item));
+
+checklistDiv.appendChild(div);
+
+})
+
 }
 
-/* =========================
-   REGISTRAR PROBLEMAS
-========================= */
+/* REGISTRAR PROBLEMAS */
 
 function registrarProblema(item){
 
-    const existente = Array.from(listaProblemas.children)
-        .some(li => li.dataset.item === item);
+if(problemas.includes(item))return;
 
-    if(existente) return;
+problemas.push(item);
 
-    const li = document.createElement("li");
-    li.dataset.item = item;
+let dados = classificacao[item] || {tipo:"Preventiva",prioridade:"BAIXA"};
 
-    let tipo = classificacao[item] || "Preventiva - BAIXA";
-    li.textContent = `${item} → ${tipo}`;
+const li=document.createElement("li");
 
-    listaProblemas.appendChild(li);
+li.innerHTML=`
+${item} → ${dados.tipo} - 
+<span class="prioridade${dados.prioridade}">
+${dados.prioridade}
+</span>
+`;
+
+listaProblemas.appendChild(li);
+
 }
 
-/* =========================
-   PREVIEW DE IMAGENS
-========================= */
+/* PREVIEW IMAGENS */
 
-document.getElementById("fotos").addEventListener("change", function(){
+document.getElementById("fotos").addEventListener("change",function(){
 
-    imagens = [];
-    document.getElementById("preview").innerHTML = "";
+imagens=[...this.files];
 
-    Array.from(this.files).forEach(file=>{
-        const reader = new FileReader();
-        reader.onload = e=>{
-            imagens.push(e.target.result);
+const preview=document.getElementById("preview");
+preview.innerHTML="";
 
-            const img = document.createElement("img");
-            img.src = e.target.result;
-            document.getElementById("preview").appendChild(img);
-        };
-        reader.readAsDataURL(file);
-    });
+imagens.forEach(file=>{
+
+const img=document.createElement("img");
+img.src=URL.createObjectURL(file);
+
+preview.appendChild(img);
+
+})
+
 });
 
-/* =========================
-   GERAR PDF PROFISSIONAL
-========================= */
+/* SALVAR CHECKLIST */
 
-function gerarPDF(){
+window.salvarChecklist = async function(){
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF("p","mm","a4");
+const motorista=nome.value;
+const veiculo=veiculoInput.value;
+const empresa=empresa.value;
+const data=dataInput.value;
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+let fotosUrls=[];
 
-    const primary = [30,60,114];
-    const dark = [33,33,33];
-    const danger = [180,0,0];
+for(const file of imagens){
 
-    let y = 20;
+const storageRef=ref(storage,"fotos/"+file.name);
 
-    function header(){
-        doc.setFillColor(...primary);
-        doc.rect(0,0,pageWidth,25,"F");
+await uploadBytes(storageRef,file);
 
-        doc.setFont("helvetica","bold");
-        doc.setFontSize(16);
-        doc.setTextColor(255,255,255);
-        doc.text("RELATÓRIO CHECKLIST DE FROTA", pageWidth/2,15,{align:"center"});
+const url=await getDownloadURL(storageRef);
 
-        y = 35;
-    }
+fotosUrls.push(url);
 
-    function footer(){
-        doc.setFontSize(8);
-        doc.setTextColor(120);
-        doc.text("Gerado por FleetCheck Pro",10,pageHeight-10);
-        doc.text("Página "+doc.internal.getNumberOfPages(),pageWidth-25,pageHeight-10);
-    }
+}
 
-    header();
+await addDoc(collection(db,"checklists"),{
 
-    /* INFORMAÇÕES */
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(13);
-    doc.setTextColor(...primary);
-    doc.text("INFORMAÇÕES GERAIS",10,y);
-    y+=10;
+motorista,
+veiculo,
+empresa,
+data,
+problemas,
+observacoes:observacoes.value,
+fotos:fotosUrls,
+timestamp:Date.now()
 
-    doc.rect(10,y,pageWidth-20,25);
+});
 
-    doc.setFont("helvetica","normal");
-    doc.setFontSize(11);
-    doc.setTextColor(...dark);
+alert("Checklist salvo!");
 
-    doc.text("Motorista: "+nome.value,15,y+7);
-    doc.text("Veículo: "+veiculo.value,15,y+14);
-    doc.text("Empresa: "+empresa.value,15,y+21);
-    doc.text("Data: "+data.value,110,y+21);
+carregarDashboard();
 
-    y+=40;
+}
 
-    /* PROBLEMAS */
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(14);
-    doc.setTextColor(...primary);
-    doc.text("PROBLEMAS IDENTIFICADOS",10,y);
-    y+=10;
+/* DASHBOARD */
 
-    doc.setFontSize(11);
+async function carregarDashboard(){
 
-    const problemas = document.querySelectorAll("#problemas li");
+const querySnapshot = await getDocs(collection(db,"checklists"));
 
-    if(problemas.length === 0){
-        doc.setFont("helvetica","normal");
-        doc.setTextColor(...dark);
-        doc.text("Nenhum problema identificado.",10,y);
-        y+=8;
-    } else {
+let veiculos={};
+let problemasStats={};
 
-        problemas.forEach(li=>{
+querySnapshot.forEach(doc=>{
 
-            if(y > pageHeight-25){
-                footer();
-                doc.addPage();
-                header();
-            }
+const data=doc.data();
 
-            let texto = li.textContent.replace(/\s+/g," ").trim();
-            let linhas = doc.splitTextToSize(texto,pageWidth-30);
+veiculos[data.veiculo]=(veiculos[data.veiculo]||0)+data.problemas.length;
 
-            if(texto.includes("CRÍTICA")){
-                doc.setFont("helvetica","bold");
-                doc.setTextColor(...danger);
-            }else{
-                doc.setFont("helvetica","normal");
-                doc.setTextColor(...dark);
-            }
+data.problemas.forEach(p=>{
+problemasStats[p]=(problemasStats[p]||0)+1;
+});
 
-            doc.text("• "+linhas,12,y);
-            y+=linhas.length*6+2;
-        });
-    }
+});
 
-    /* OBSERVAÇÕES */
-    y+=5;
+criarGrafico("graficoVeiculos",veiculos);
+criarGrafico("graficoProblemas",problemasStats);
 
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(13);
-    doc.setTextColor(...primary);
-    doc.text("OBSERVAÇÕES DO MOTORISTA",10,y);
-    y+=10;
+}
 
-    doc.setFont("helvetica","normal");
-    doc.setFontSize(11);
-    doc.setTextColor(...dark);
+function criarGrafico(id,data){
 
-    const obs = observacoes.value || "";
-    const obsLinhas = doc.splitTextToSize(obs,pageWidth-30);
+const ctx=document.getElementById(id);
 
-    doc.rect(10,y-5,pageWidth-20,obsLinhas.length*6+10);
-    doc.text(obsLinhas,15,y+5);
+new Chart(ctx,{
+type:"bar",
+data:{
+labels:Object.keys(data),
+datasets:[{
+label:"Ocorrências",
+data:Object.values(data)
+}]
+}
+});
 
-    y+=obsLinhas.length*6+15;
+}
 
-    /* FOTOS */
-    if(imagens.length > 0){
+carregarDashboard();
 
-        footer();
-        doc.addPage();
-        header();
+/* PDF */
 
-        doc.setFont("helvetica","bold");
-        doc.setFontSize(14);
-        doc.setTextColor(...primary);
-        doc.text("REGISTRO FOTOGRÁFICO",10,y);
-        y+=15;
+window.gerarPDF=function(){
 
-        imagens.forEach(img=>{
-            if(y > pageHeight-80){
-                footer();
-                doc.addPage();
-                header();
-            }
-            doc.addImage(img,"JPEG",15,y,180,60);
-            y+=70;
-        });
-    }
+const { jsPDF } = window.jspdf;
 
-    footer();
-    doc.save("Checklist_Frota_Profissional.pdf");
+const doc=new jsPDF();
+
+doc.text("Checklist Frota",20,20);
+
+doc.text("Motorista: "+nome.value,20,40);
+doc.text("Veículo: "+veiculo.value,20,50);
+
+let y=70;
+
+problemas.forEach(p=>{
+doc.text("- "+p,20,y);
+y+=10;
+});
+
+doc.save("checklist.pdf");
+
 }
 
 </script>
+
 </body>
 </html>
